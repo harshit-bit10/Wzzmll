@@ -205,7 +205,13 @@ async def record_command(_, message: Message):
     await message.reply_text("Select audio tracks (multi-select):", reply_markup=buttons)
 
 # Callback: Handle stream selection
-@bot.on_callback_query(filters.regex(r"^(audio|video|multiplexed)_(\d+|confirm)$"))
+# Command: Record
+@bot.on_message(
+    (filters.private | filters.group) &  # Allow both private messages and groups
+    filters.regex(r"https?://.*\s\d{2}:\d{2}:\d{2}") &  # Match URL followed by timestamp
+    filters.user(Config.AUTH_USERS)  # Restrict to authorized users
+)
+
 async def handle_selection(_, query: CallbackQuery):
     user_id = query.from_user.id
     state = user_states.get(user_id)
