@@ -30,13 +30,7 @@ bot = Client(
     api_hash=Config.API_HASH,
 )
 
-# Paths for FFmpeg and FFprobe
-FFMPEG_PATH = os.path.join(os.getcwd(), 'bin', 'ffmpeg.exe')
 
-# Validate binary paths
-for tool, path in [("FFmpeg", FFMPEG_PATH)]:
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"{tool} not found in the 'bin' folder. Ensure it's present.")
 
 # Directory for saving recordings
 DOWNLOADS_DIR = Config.DOWNLOAD_DIRECTORY
