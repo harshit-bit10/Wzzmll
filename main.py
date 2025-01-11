@@ -108,9 +108,9 @@ async def parse_streams(link: str) -> Tuple[List[str], List[str], List[str]]:
                     if audio_codec not in seen_audio_codecs:
                         seen_audio_codecs.add(audio_codec)
                         audio_video_streams.append(
-                            f"{stream['format_id']} - {resolution} - {video_codec} ({video_bitrate}) + {audio_codec} ({language}, {audio_bitrate})"
+                            f"{stream['format_id']} - {resolution} - {video_codec} ({video_bitrate}) + {language} ({audio_codec}, {audio_bitrate})"
                         )
-                        audio_streams.append(f"{stream['format_id']} - {audio_codec} - {language} - {audio_bitrate}")
+                        audio_streams.append(f"{stream['format_id']} - {language} - {audio_codec} - {audio_bitrate}")
                         video_streams.append(f"{stream['format_id']} - {resolution} - {video_codec} - {video_bitrate}")
                     else:
                         # If the audio codec is the same, just append the video part with no audio description
@@ -165,7 +165,12 @@ async def start_command(_, message: Message):
     await message.reply_text("Welcome to Live Record Bot! Use /record <link> <hh:mm:ss> to start recording.")
 
 # Command: Record
-@bot.on_message(filters.private & filters.regex(r"https?://.*\s\d{2}:\d{2}:\d{2}") & filters.user(Config.AUTH_USERS))
+@bot.on_message(
+    (filters.private | filters.group) &  # Allow both private messages and groups
+    filters.regex(r"https?://.*\s\d{2}:\d{2}:\d{2}") &  # Match URL followed by timestamp
+    filters.user(Config.AUTH_USERS)  # Restrict to authorized users
+)
+
 async def record_command(_, message: Message):
     args = message.text.split(maxsplit=5)  # Split into 5 parts (link, duration, title, channel)
     
