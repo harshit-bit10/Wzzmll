@@ -51,7 +51,7 @@ pm_auth_users = [6066102279]
 # Telegram max message length
 MAX_MESSAGE_LENGTH = 4096
 
-@app.on_message(filters.private)  # Only respond to private messages
+@bot.on_message(filters.private)  # Only respond to private messages
 async def handle_private_message(client, message):
     user_id = message.from_user.id  # Get the user ID of the sender
 
@@ -61,12 +61,11 @@ async def handle_private_message(client, message):
         await message.reply(
             "<code>Hey Dude, seems like master hasn't given you access to use me.\n"
             "Please contact him immediately at</code> <b> @SupremeYoriichi</b>",
-            parse_mode="html"  # Specify that you are using HTML formatting
         )
         return  # Exit the function if the user is not authorized
 
     # If the user is authorized, handle the command or message
-    await message.reply("</code> Welcome! You have access to use the bot. </code>")
+    await message.reply("</code> Welcome! You Have Acces To Use The Bot. To Live Record Bot! Use /record <link> <hh:mm:ss> to start recording. </code>")
 
 # Helper: Run shell commands asynchronously
 async def run_command(cmd: str) -> Tuple[str, str]:
@@ -187,7 +186,7 @@ async def send_long_message(chat_id: int, text: str):
 # Command: Start
 @bot.on_message(filters.command("start"))
 async def start_command(_, message: Message):
-    await message.reply_text("Welcome to Live Record Bot! Use /record <link> <hh:mm:ss> to start recording.")
+    await message.reply_text("</code> Welcome! You Have Acces To Use The Bot. To Live Record Bot! Use /record <link> <hh:mm:ss> to start recording. </code>")
 
 # Command: Record
 @bot.on_message(
