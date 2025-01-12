@@ -29,7 +29,13 @@ bot = Client(
     api_hash=Config.API_HASH,
 )
 
+# Paths for FFmpeg and FFprobe
+FFMPEG_PATH = os.path.join(os.getcwd(), 'bin', 'ffmpeg.exe')
 
+# Validate binary paths
+for tool, path in [("FFmpeg", FFMPEG_PATH)]:
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"{tool} not found in the 'bin' folder. Ensure it's present.")
 
 # Directory for saving recordings
 DOWNLOADS_DIR = Config.DOWNLOAD_DIRECTORY
@@ -38,9 +44,29 @@ os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 # Global user state tracking
 user_states: Dict[int, Dict] = {}
 user_sessions = {}
+chat_id = -1002275998071
+dump_chat_id = -1002013773334
+pm_auth_users = [6066102279]
 
 # Telegram max message length
 MAX_MESSAGE_LENGTH = 4096
+
+@app.on_message(filters.private)  # Only respond to private messages
+async def handle_private_message(client, message):
+    user_id = message.from_user.id  # Get the user ID of the sender
+
+    # Check if the user is authorized
+    if user_id not in pm_auth_users:
+        # Send a message if the user is not authorized
+        await message.reply(
+            "<code>Hey Dude, seems like master hasn't given you access to use me.\n"
+            "Please contact him immediately at</code> <b> @SupremeYoriichi</b>",
+            parse_mode="html"  # Specify that you are using HTML formatting
+        )
+        return  # Exit the function if the user is not authorized
+
+    # If the user is authorized, handle the command or message
+    await message.reply("</code> Welcome! You have access to use the bot. </code>")
 
 # Helper: Run shell commands asynchronously
 async def run_command(cmd: str) -> Tuple[str, str]:
@@ -91,7 +117,7 @@ async def parse_streams(link: str) -> Tuple[List[str], List[str], List[str]]:
                 elif stream.get('acodec') != 'none' and stream.get('vcodec') == 'none':
                     audio_bitrate = f"{stream.get('abr', 'Unknown')}kbps"
                     audio_streams.append(
-                        f"{stream['format_id']} - {stream.get('acodec', 'Unknown')} - {stream.get('language', 'Unknown')} - {audio_bitrate}"
+                        f"{stream['format_id']} - {stream.get('acodec', 'Default')} - {stream.get('language', 'Track')} - {audio_bitrate}"
                     )
 
                 # Multiplexed streams (audio + video)
@@ -107,9 +133,9 @@ async def parse_streams(link: str) -> Tuple[List[str], List[str], List[str]]:
                     if audio_codec not in seen_audio_codecs:
                         seen_audio_codecs.add(audio_codec)
                         audio_video_streams.append(
-                            f"{stream['format_id']} - {resolution} - {video_codec} ({video_bitrate}) + {audio_codec} ({language}, {audio_bitrate})"
+                            f"{stream['format_id']} - {resolution} - {video_codec} ({video_bitrate}) + {language} ({audio_codec}, {audio_bitrate})"
                         )
-                        audio_streams.append(f"{stream['format_id']} - {audio_codec} - {language} - {audio_bitrate}")
+                        audio_streams.append(f"{stream['format_id']} - {language} - {audio_codec} - {audio_bitrate}")
                         video_streams.append(f"{stream['format_id']} - {resolution} - {video_codec} - {video_bitrate}")
                     else:
                         # If the audio codec is the same, just append the video part with no audio description
@@ -326,6 +352,22 @@ async def run_command_with_adaptive_logic(cmd, stream_type, stream_level, start_
 
     return await run_command(cmd)
 
+def get_audio_stream_count(file_path):
+    """Get the number of audio streams in the given file."""
+    try:
+        result = subprocess.run(
+            ['ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', file_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        audio_streams = result.stdout.decode().strip().splitlines()
+        return len(audio_streams)
+    except Exception as e:
+        logger.error(f"Error getting audio stream count for {file_path}: {e}")
+        return 0  # Return 0 if there's an error
+
+
+
 async def start_recording(user_id: int):
     try:
         state = user_states.get(user_id)
@@ -426,9 +468,15 @@ async def start_recording(user_id: int):
                 logger.error(f"Error during muxing: {e}")
                 await send_notification(user_id, f"Muxing failed: {e}")
 
-        # Step 6: Notify user and handle final files
+        # Step 6: Check audio stream count from the generated muxed files
+        for muxed_file in muxed_files:
+            audio_count = get_audio_stream_count(muxed_file)
+            audio_label = "Single-Audio" if audio_count == 1 else "Multi-Audio"
+            logger.info(f"Muxed file {muxed_file} has {audio_count} streams: {audio_label}")
+
+        # Notify user and handle final files
         logger.info(f"Recording completed for user {user_id}. Files are ready in {DOWNLOADS_DIR}.")
-        await send_notification(user_id, "Recording completed. Uploading files...")
+        await send_notification(chat_id, "Recording completed. Uploading files...")
 
         # Function to get video duration
         def get_video_duration(file_path):
@@ -454,7 +502,6 @@ async def start_recording(user_id: int):
                     file_name = os.path.basename(muxed_file)
                     duration = get_video_duration(muxed_file)
 
-                    # Always upload the file regardless of size (you can modify this part for larger files)
                     user_state = user_states.get(user_id)
                     if user_state:
                         title = user_state.get("title")
@@ -472,6 +519,18 @@ async def start_recording(user_id: int):
                                 width, height = resolution[0], resolution[1]
                                 resolution_str = f"{height}p"  # For example, 480p, 1080p
 
+                                audio_codec_cmd = [
+                                    "ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name", 
+                                    "-of", "default=noprint_wrappers=1:nokey=1", file_path
+                                ]
+                                audio_codec = subprocess.check_output(audio_codec_cmd).decode().strip()
+
+                                video_codec_cmd = [
+                                    "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name", 
+                                    "-of", "default=noprint_wrappers=1:nokey=1", file_path
+                                ]
+                                video_codec = subprocess.check_output(video_codec_cmd).decode().strip()
+
                                 # Get audio bitrate using ffprobe
                                 audio_bitrate_cmd = [
                                     "ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=bit_rate", 
@@ -479,7 +538,7 @@ async def start_recording(user_id: int):
                                 ]
                                 audio_bitrate = subprocess.check_output(audio_bitrate_cmd).decode().strip()
                                 audio_bitrate = int(audio_bitrate) / 1000  # Convert to kbps
-                                audio_bitrate = round(audio_bitrate)  # Round off to nearest integer
+                                audio_bitrate = round(audio_bitrate )  # Round off to nearest integer
 
                                 # Get video bitrate using ffprobe
                                 video_bitrate_cmd = [
@@ -490,39 +549,49 @@ async def start_recording(user_id: int):
                                 video_bitrate = int(video_bitrate) / 1000  # Convert to kbps
                                 video_bitrate = round(video_bitrate)  # Round off to nearest integer
 
-                                return resolution_str, f"{audio_bitrate} kbps", f"{video_bitrate} kbps"
+                                return resolution_str, audio_codec, video_codec, f"{audio_bitrate}kbps", f"{video_bitrate}kbps"
                             except Exception as e:
-                                return "Unknown", "Unknown", "Unknown"
+                                return "Unknown", "Unknown", "Unknown", "Unknown", "Unknown"
 
                         # Extract details for each muxed file
-                        resolution, audio_bitrate, video_bitrate = get_media_info(muxed_file)
+                        resolution, audio_codec, video_codec, audio_bitrate, video_bitrate = get_media_info(muxed_file)
 
                         # Generate the caption with dynamic title, channel, and credits
                         caption = (
-                            f"<b>File-Name:</b> <code>[{Config.CREDITS}].{title}.{channel}.{resolution}-{video_bitrate}.IPTV.WEB-DL.{audio_bitrate}</code>\n"
+                            f"<b>File-Name:</b> <code>[{Config.CREDITS}].{title}.{channel}.{resolution}.{video_codec}.{video_bitrate}.IPTV.WEB-DL.{audio_label}.{audio_codec}.{audio_bitrate}.mp4</code>\n"
                             f"<b>Duration:</b> <code>{duration}</code>"
                         )
 
                         # Send the video file to Telegram
-                        await bot.send_video(
-                            chat_id=user_id,
+                        video_message = await bot.send_video(
+                            chat_id=chat_id,
                             video=open(muxed_file, 'rb'),
                             caption=caption,
                         )
                         logger.info(f"Video uploaded successfully for user {user_id}.")
+
+                    if hasattr(video_message, 'id'):
+                        await bot.copy_message(
+                            chat_id=dump_chat_id,
+                            from_chat_id=chat_id,
+                            message_id=video_message.id   # The ID of the message to copy
+                        )
+                        logger.info(f"Video forwarded successfully for user {user_id} to dump chat {dump_chat_id}.")
+
                 except Exception as e:
                     logger.error(f"Error during upload: {e}")
-                    await send_notification(user_id, f"Upload failed: {e}")
+                    await send_notification(chat_id, f"Upload failed: {e}")
 
         # Cleanup
         logger.info("Cleanup completed.")
-        await send_notification(user_id, "Files uploaded and cleanup done.")
+        await send_notification(chat_id, "Files uploaded and cleanup done.")
     except Exception as e:
         logger.error(f"Error: {e}")
-        await send_notification(user_id, f"An error occurred: {e}")
+        await send_notification(chat_id, f"An error occurred: {e}")
 
 
 # Start bot
 bot.run()
+
 
 
