@@ -4,6 +4,7 @@ import logging
 import json
 import time
 import shlex
+import ffmpeg
 import shutil
 from datetime import datetime , timedelta
 from typing import Dict, List, Tuple
@@ -28,14 +29,6 @@ bot = Client(
     api_id=Config.API_ID,
     api_hash=Config.API_HASH,
 )
-
-# Paths for FFmpeg and FFprobe
-FFMPEG_PATH = os.path.join(os.getcwd(), 'bin', 'ffmpeg.exe')
-
-# Validate binary paths
-for tool, path in [("FFmpeg", FFMPEG_PATH)]:
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"{tool} not found in the 'bin' folder. Ensure it's present.")
 
 # Directory for saving recordings
 DOWNLOADS_DIR = Config.DOWNLOAD_DIRECTORY
@@ -397,7 +390,7 @@ async def start_recording(user_id: int):
             for i, video in enumerate(video_tracks):
                 video_output = os.path.join(DOWNLOADS_DIR, f"video_{user_id}_{i}.ts")
                 cmd = (
-                    f'"{FFMPEG_PATH}" -y -ss {start_time} -i "{link}" -map 0:v:{video} '
+                    f'"ffmpeg" -y -ss {start_time} -i "{link}" -map 0:v:{video} '
                     f"-c:v copy -t {duration} -fflags +genpts -f mpegts \"{video_output}\""
                 )
                 output_video_files.append(video_output)
@@ -407,7 +400,7 @@ async def start_recording(user_id: int):
             for i, audio in enumerate(audio_tracks):
                 audio_output = os.path.join(DOWNLOADS_DIR, f"audio_{user_id}_{i}.aac")
                 cmd = (
-                    f'"{FFMPEG_PATH}" -y -ss {start_time} -i "{link}" -map 0:a:{audio} '
+                    f'"ffmpeg" -y -ss {start_time} -i "{link}" -map 0:a:{audio} '
                     f"-c:a copy -t {duration} -f adts \"{audio_output}\""
                 )
                 output_audio_files.append(audio_output)
@@ -421,7 +414,7 @@ async def start_recording(user_id: int):
             for i, video in enumerate(video_tracks):
                 video_output = os.path.join(DOWNLOADS_DIR, f"video_{user_id}_{i}.ts")
                 cmd = (
-                    f'"{FFMPEG_PATH}" -y -ss {start_time} -i "{link}" -map 0:v:{video} '
+                    f'"ffmpeg" -y -ss {start_time} -i "{link}" -map 0:v:{video} '
                     f"-c:v copy -t {duration} -f mpegts \"{video_output}\""
                 )
                 output_video_files.append(video_output)
@@ -431,7 +424,7 @@ async def start_recording(user_id: int):
             for i, audio in enumerate(audio_tracks):
                 audio_output = os.path.join(DOWNLOADS_DIR, f"audio_{user_id}_{i}.aac")
                 cmd = (
-                    f'"{FFMPEG_PATH}" -y -ss {start_time} -i "{link}" -map 0:a:{audio} '
+                    f'ffmpeg -y -ss {start_time} -i "{link}" -map 0:a:{audio} '
                     f"-c:a copy -t {duration} -f adts \"{audio_output}\""
                 )
                 output_audio_files.append(audio_output)
@@ -455,7 +448,7 @@ async def start_recording(user_id: int):
 
             # Mux command to combine video with all audio tracks
             mux_cmd = (
-                f'"{FFMPEG_PATH}" -y -i \"{video_file}\" {audio_inputs} '
+                f'ffmpeg -y -i "{video_file}" {audio_inputs} '
                 f"-map 0:v {map_audio} "
                 f"-c:v copy -c:a copy -movflags +faststart \"{muxed_file}\""
             )
@@ -591,6 +584,5 @@ async def start_recording(user_id: int):
 
 # Start bot
 bot.run()
-
 
 
