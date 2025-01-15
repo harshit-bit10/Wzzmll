@@ -6,7 +6,7 @@ class Config(object):
     BOT_TOKEN = environ.get("BOT_TOKEN", "7240304290:AAGfIJUgfukO1ALuhnhZS21g980zpL57VQM")
     
     # Combine AUTH_USERS and AUTH_GROUPS into a single list
-    AUTH_USERS = list(int(x) for x in environ.get("AUTH_USERS", "6066102279 1885207148").split(" "))
+    AUTH_USERS = list(int(x) for x in environ.get("AUTH_USERS", "6066102279 1885207148 6623741903").split(" "))
     
     OWNER_ID = int(environ.get("OWNER_ID", 6066102279))
     CREDITS = environ.get("CREDITS", "SharkToonsIndia")  # Default value is "SharkToonsIndia"
