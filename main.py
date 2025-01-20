@@ -37,7 +37,7 @@ os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 # Global user state tracking
 user_states: Dict[int, Dict] = {}
 user_sessions = {}
-chat_id = -1002275998071
+chat_id = -1002384253271
 dump_chat_id = -1002013773334
 dump_other_chat_id = -1002365246278
 pm_auth_users = [6066102279]
