@@ -39,6 +39,7 @@ user_states: Dict[int, Dict] = {}
 user_sessions = {}
 chat_id = -1002275998071
 dump_chat_id = -1002013773334
+dump_other_chat_id = -1002365246278
 pm_auth_users = [6066102279]
 
 # Telegram max message length
@@ -570,6 +571,14 @@ async def start_recording(user_id: int):
                         )
                         logger.info(f"Video forwarded successfully for user {user_id} to dump chat {dump_chat_id}.")
 
+
+                        await bot.copy_message(
+                            chat_id=dump_other_chat_id,
+                            from_chat_id=chat_id,
+                            message_id=video_message.id   # The ID of the message to copy
+                        )
+                        logger.info(f"Video forwarded successfully for user {user_id} to dump chat {dump_other_chat_id}.")
+                        
                 except Exception as e:
                     logger.error(f"Error during upload: {e}")
                     await send_notification(chat_id, f"Upload failed: {e}")
