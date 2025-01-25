@@ -383,83 +383,53 @@ async def start_recording(user_id: int):
         output_audio_files = []
         muxed_files = []  # List to store muxed file paths
 
-        if 'master.m3u8' in link:
-            # Processing for master.m3u8
-            logger.info(f"Processing master.m3u8 for user {user_id}.")
+    if 'master.m3u8' in link:
+        # Processing for master.m3u8
+        logger.info(f"Processing master.m3u8 for user {user_id}.")
 
-            # Process each video track for master.m3u8
-            for i, video in enumerate(video_tracks):
-                video_output = os.path.join(DOWNLOADS_DIR, f"video_{user_id}_{i}.ts")
-                cmd = (
-                    f'"ffmpeg" -y -ss {start_time} -i "{link}" -map 0:v:{video} '
-                    f"-c:v copy -t {duration} -fflags +genpts -f mpegts \"{video_output}\""
-                )
-                output_video_files.append(video_output)
-                tasks.append(run_command(cmd))
+        for i, (video, audio) in enumerate(zip(video_tracks, audio_tracks)):
+            # Combine video and audio streams together
+            muxed_file = os.path.join(DOWNLOADS_DIR, f"muxed_{user_id}_{i}.mp4")
+            cmd = (
+                f'"ffmpeg" -y -ss {start_time} -i "{link}" '
+                f"-map 0:v:{video} -map 0:a:{audio} "
+                f"-c:v copy -c:a copy -t {duration} -movflags +faststart \"{muxed_file}\""
+            )
+            tasks.append(run_command(cmd))
 
-            # Process each audio track for master.m3u8
-            for i, audio in enumerate(audio_tracks):
-                audio_output = os.path.join(DOWNLOADS_DIR, f"audio_{user_id}_{i}.aac")
-                cmd = (
-                    f'"ffmpeg" -y -ss {start_time} -i "{link}" -map 0:a:{audio} '
-                    f"-c:a copy -t {duration} -f adts \"{audio_output}\""
-                )
-                output_audio_files.append(audio_output)
-                tasks.append(run_command(cmd))
+    else:
+        # Processing for non-master.m3u8
+        logger.info(f"Processing non-master.m3u8 for user {user_id}.")
 
-        else:
-            # Processing for non-master.m3u8 links (e.g., direct .m3u8 streams)
-            logger.info(f"Processing non-master.m3u8 for user {user_id}.")
+        for i, (video, audio) in enumerate(zip(video_tracks, audio_tracks)):
+            # Combine video and audio streams together
+            muxed_file = os.path.join(DOWNLOADS_DIR, f"muxed_{user_id}_{i}.mp4")
+            cmd = (
+                f'"ffmpeg" -y -ss {start_time} -i "{link}" '
+                f"-map 0:v:{video} -map 0:a:{audio} "
+                f"-c:v copy -c:a copy -t {duration} -movflags +faststart \"{muxed_file}\""
+            )
+            tasks.append(run_command(cmd))
 
-            # Process video tracks for non-master.m3u8
-            for i, video in enumerate(video_tracks):
-                video_output = os.path.join(DOWNLOADS_DIR, f"video_{user_id}_{i}.ts")
-                cmd = (
-                    f'"ffmpeg" -y -ss {start_time} -i "{link}" -map 0:v:{video} '
-                    f"-c:v copy -t {duration} -f mpegts \"{video_output}\""
-                )
-                output_video_files.append(video_output)
-                tasks.append(run_command(cmd))
+    # Step 3: Run all tasks in parallel for maximum efficiency
+    await asyncio.gather(*tasks)
 
-            # Process audio tracks for non-master.m3u8
-            for i, audio in enumerate(audio_tracks):
-                audio_output = os.path.join(DOWNLOADS_DIR, f"audio_{user_id}_{i}.aac")
-                cmd = (
-                    f'ffmpeg -y -ss {start_time} -i "{link}" -map 0:a:{audio} '
-                    f"-c:a copy -t {duration} -f adts \"{audio_output}\""
-                )
-                output_audio_files.append(audio_output)
-                tasks.append(run_command(cmd))
-
-        # Step 3: Run all tasks in parallel for maximum efficiency
-        await asyncio.gather(*tasks)
-
-        # Step 4: Verify file creation and send notifications
-        for file in output_video_files + output_audio_files:
-            if not os.path.exists(file) or os.path.getsize(file) < 1 * 512:  # File size < 0.5 KB
-                logger.error(f"Error: File not created or is too small - {file}")
-                await send_notification(user_id, f"Recording failed: File error - {file}")
+    # Step 4: Verify file creation and send notifications
+    for file in os.listdir(DOWNLOADS_DIR):
+        if file.startswith(f"muxed_{user_id}") and file.endswith(".mp4"):
+            file_path = os.path.join(DOWNLOADS_DIR, file)
+            if not os.path.exists(file_path) or os.path.getsize(file_path) < 1 * 512:  # File size < 0.5 KB
+                logger.error(f"Error: File not created or is too small - {file_path}")
+                await send_notification(user_id, f"Recording failed: File error - {file_path}")
                 return
 
-        # Step 5: Mux video and audio files together
-        for i, video_file in enumerate(output_video_files):
-            muxed_file = os.path.join(DOWNLOADS_DIR, f"muxed_{user_id}_{i}.mp4")
-            audio_inputs = " ".join([f"-i \"{audio_file}\"" for audio_file in output_audio_files])
-            map_audio = " ".join([f"-map {j + 1}:a" for j in range(len(output_audio_files))])
+    logger.info(f"All muxed files created successfully for user {user_id}.")
 
-            # Mux command to combine video with all audio tracks
-            mux_cmd = (
-                f'ffmpeg -y -i "{video_file}" {audio_inputs} '
-                f"-map 0:v {map_audio} "
-                f"-c:v copy -c:a copy -movflags +faststart \"{muxed_file}\""
-            )
-            try:
-                await run_command(mux_cmd)
-                muxed_files.append(muxed_file)
-                logger.info(f"Muxing completed: {muxed_file}")
-            except Exception as e:
-                logger.error(f"Error during muxing: {e}")
-                await send_notification(user_id, f"Muxing failed: {e}")
+# Example function for notifications (placeholder)
+async def send_notification(chat_id, message):
+    logger.info(f"Notification sent to user {chat_id}: {message}")
+
+
 
         # Step 6: Check audio stream count from the generated muxed files
         for muxed_file in muxed_files:
