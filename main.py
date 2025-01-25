@@ -6,7 +6,7 @@ import time
 import shlex
 import ffmpeg
 import shutil
-from datetime import datetime , timedelta
+from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
 from pyrogram import Client, filters
 import subprocess
@@ -188,7 +188,6 @@ async def start_command(_, message: Message):
     filters.regex(r"https?://.*\s\d{2}:\d{2}:\d{2}") &  # Match URL followed by timestamp
     filters.user(Config.AUTH_USERS)  # Restrict to authorized users
 )
-
 async def record_command(_, message: Message):
     args = message.text.split(maxsplit=5)  # Split into 5 parts (link, duration, title, channel)
     
@@ -359,8 +358,6 @@ def get_audio_stream_count(file_path):
         logger.error(f"Error getting audio stream count for {file_path}: {e}")
         return 0  # Return 0 if there's an error
 
-
-
 async def start_recording(user_id: int):
     try:
         state = user_states.get(user_id)
@@ -383,53 +380,47 @@ async def start_recording(user_id: int):
         output_audio_files = []
         muxed_files = []  # List to store muxed file paths
 
-    if 'master.m3u8' in link:
-        # Processing for master.m3u8
-        logger.info(f"Processing master.m3u8 for user {user_id}.")
+        if 'master.m3u8' in link:
+            # Processing for master.m3u8
+            logger.info(f"Processing master.m3u8 for user {user_id}.")
 
-        for i, (video, audio) in enumerate(zip(video_tracks, audio_tracks)):
-            # Combine video and audio streams together
-            muxed_file = os.path.join(DOWNLOADS_DIR, f"muxed_{user_id}_{i}.mp4")
-            cmd = (
-                f'"ffmpeg" -y -ss {start_time} -i "{link}" '
-                f"-map 0:v:{video} -map 0:a:{audio} "
-                f"-c:v copy -c:a copy -t {duration} -movflags +faststart \"{muxed_file}\""
-            )
-            tasks.append(run_command(cmd))
+            for i, (video, audio) in enumerate(zip(video_tracks, audio_tracks)):
+                # Combine video and audio streams together
+                muxed_file = os.path.join(DOWNLOADS_DIR, f"muxed_{user_id}_{i}.mp4")
+                cmd = (
+                    f'"ffmpeg" -y -ss {start_time} -i "{link}" '
+                    f"-map 0:v:{video} -map 0:a:{audio} "
+                    f"-c:v copy -c:a copy -t {duration} -movflags +faststart \"{muxed_file}\""
+                )
+                tasks.append(run_command(cmd))
 
-    else:
-        # Processing for non-master.m3u8
-        logger.info(f"Processing non-master.m3u8 for user {user_id}.")
+        else:
+            # Processing for non-master.m3u8
+            logger.info(f"Processing non-master.m3u8 for user {user_id}.")
 
-        for i, (video, audio) in enumerate(zip(video_tracks, audio_tracks)):
-            # Combine video and audio streams together
-            muxed_file = os.path.join(DOWNLOADS_DIR, f"muxed_{user_id}_{i}.mp4")
-            cmd = (
-                f'"ffmpeg" -y -ss {start_time} -i "{link}" '
-                f"-map 0:v:{video} -map 0:a:{audio} "
-                f"-c:v copy -c:a copy -t {duration} -movflags +faststart \"{muxed_file}\""
-            )
-            tasks.append(run_command(cmd))
+            for i, (video, audio) in enumerate(zip(video_tracks, audio_tracks)):
+                # Combine video and audio streams together
+                muxed_file = os.path.join(DOWNLOADS_DIR, f"muxed_{user_id}_{i}.mp4")
+                cmd = (
+                    f'"ffmpeg" -y -ss {start_time} -i "{link}" '
+                    f"-map 0:v:{video} -map 0:a:{audio} "
+                    f"-c:v copy -c:a copy -t {duration} -movflags +faststart \"{muxed_file}\""
+                )
+                tasks.append(run_command(cmd))
 
-    # Step 3: Run all tasks in parallel for maximum efficiency
-    await asyncio.gather(*tasks)
+        # Step 3: Run all tasks in parallel for maximum efficiency
+        await asyncio.gather(*tasks)
 
-    # Step 4: Verify file creation and send notifications
-    for file in os.listdir(DOWNLOADS_DIR):
-        if file.startswith(f"muxed_{user_id}") and file.endswith(".mp4"):
-            file_path = os.path.join(DOWNLOADS_DIR, file)
-            if not os.path.exists(file_path) or os.path.getsize(file_path) < 1 * 512:  # File size < 0.5 KB
-                logger.error(f"Error: File not created or is too small - {file_path}")
-                await send_notification(user_id, f"Recording failed: File error - {file_path}")
-                return
+        # Step 4: Verify file creation and send notifications
+        for file in os.listdir(DOWNLOADS_DIR):
+            if file.startswith(f"muxed_{user_id}") and file.endswith(".mp4"):
+                file_path = os.path.join(DOWNLOADS_DIR, file)
+                if not os.path.exists(file_path) or os.path.getsize(file_path) < 1 * 512:  # File size < 0.5 KB
+                    logger.error(f"Error: File not created or is too small - {file_path}")
+                    await send_notification(user_id, f"Recording failed: File error - {file_path}")
+                    return
 
-    logger.info(f"All muxed files created successfully for user {user_id}.")
-
-# Example function for notifications (placeholder)
-async def send_notification(chat_id, message):
-    logger.info(f"Notification sent to user {chat_id}: {message}")
-
-
+        logger.info(f"All muxed files created successfully for user {user_id}.")
 
         # Step 6: Check audio stream count from the generated muxed files
         for muxed_file in muxed_files:
@@ -439,7 +430,7 @@ async def send_notification(chat_id, message):
 
         # Notify user and handle final files
         logger.info(f"Recording completed for user {user_id}. Files are ready in {DOWNLOADS_DIR}.")
-        await send_notification(chat_id, "Recording completed. Uploading files...")
+        await send_notification(user_id, "Recording completed. Uploading files...")
 
         # Function to get video duration
         def get_video_duration(file_path):
@@ -455,6 +446,7 @@ async def send_notification(chat_id, message):
                 seconds = int(duration_seconds % 60)
                 return f"{hours}h {minutes}m {seconds}s"
             except Exception as e:
+                logger.error(f"Error getting video duration for {file_path}: {e}")
                 return "Unknown Duration"  # In case of error
 
         # Upload the muxed files
@@ -501,7 +493,7 @@ async def send_notification(chat_id, message):
                                 ]
                                 audio_bitrate = subprocess.check_output(audio_bitrate_cmd).decode().strip()
                                 audio_bitrate = int(audio_bitrate) / 1000  # Convert to kbps
-                                audio_bitrate = round(audio_bitrate )  # Round off to nearest integer
+                                audio_bitrate = round(audio_bitrate)  # Round off to nearest integer
 
                                 # Get video bitrate using ffprobe
                                 video_bitrate_cmd = [
@@ -514,6 +506,7 @@ async def send_notification(chat_id, message):
 
                                 return resolution_str, audio_codec, video_codec, f"{audio_bitrate}kbps", f"{video_bitrate}kbps"
                             except Exception as e:
+                                logger.error(f"Error getting media info for {file_path}: {e}")
                                 return "Unknown", "Unknown", "Unknown", "Unknown", "Unknown"
 
                         # Extract details for each muxed file
@@ -541,7 +534,6 @@ async def send_notification(chat_id, message):
                         )
                         logger.info(f"Video forwarded successfully for user {user_id} to dump chat {dump_chat_id}.")
 
-
                         await bot.copy_message(
                             chat_id=dump_other_chat_id,
                             from_chat_id=chat_id,
@@ -560,8 +552,5 @@ async def send_notification(chat_id, message):
         logger.error(f"Error: {e}")
         await send_notification(chat_id, f"An error occurred: {e}")
 
-
 # Start bot
 bot.run()
-
-
